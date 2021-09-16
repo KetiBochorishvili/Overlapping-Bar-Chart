@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>D3 Page Template</title>
+    <script type="text/javascript" src="d3.v4.min.js"></script>
+    <link rel="preconnect" href="https://fonts.gstatic.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      svg {
+        font-family: Roboto;
+        margin-top: 50px;
+      }
+
+      .axis text {
+        font-family: Roboto;
+        font-size: 12px;
+        fill: #ebebee;
+      }
+
+      .tick line {
+        stroke: #ebebee;
+        stroke-width: 0.25px;
+        opacity: 0.2;
+      }
+
+      body {
+        background: #060527;
+        display: flex;
+        justify-content: center;
+      }
+    </style>
+  </head>
+
+  <body>
+    <script type="text/javascript">
+      // Your beautiful D3 code will go here
+
+      var dataset = [];
+      d3.csv("survey2020eng.csv", function (data) {
+        dataset = data;
+        console.log(dataset);
+        var filtered = dataset.filter(
+          (object) =>
+            object.deservedSalary != "no answer" &&
+            object.averageMonthlyRevenue != "no answer" &&
+            object.experience != "no answer" &&
+            object.experience != "don't have"
+        );
+        console.log(filtered);
+
+        var neededFiltered = filtered.map((item) => ({
+          deservedSalary: d3.mean(
+            item["deservedSalary"]
+              .split("-")
+              .map((d) => d.replace("+", "").replace("k", "000"))
+          ),
+          averageMonthlyRevenue: d3.mean(
+            item["averageMonthlyRevenue"]
+              .split("-")
+              .map((d) => d.replace("+", "").replace("k", "000"))
+          ),
+          experience: item["experience"],
+        }));
+        console.log(neededFiltered);
+
+        var nested = d3
+          .nest()
+          .key(function (d) {
+            return d.experience;
+          })
+          .entries(neededFiltered);
+        console.log({ nested });
+
+        var nested_data = nested.filter((object) => object.values.length > 9);
+        console.log({ nested_data });
+
+        var arr = nested_data.map((item) => ({
+          experience: item["key"],
+          deservedSalary: d3.mean(item["values"], function (d) {
+            return d["deservedSalary"];
+          }),
+          averageMonthlyRevenue: d3.mean(item["values"], function (d) {
+            return d["averageMonthlyRevenue"];
+          }),
+        }));
+
+        arr.sort(function (a, b) {
+          return reg(a.experience) - reg(b.experience);
+        });
+        console.log({ arr });
+
+        var w = 800;
+        var h = 600;
+        var padding = 150;
+        var barPadding1 = 15;
+        var barPadding2 = 10;
+
+        var svg = d3
+          .select("body")
+          .append("svg")
+          .attr("width", w)
+          .attr("height", h)
+          .style("background", "#060527");
+
+        var yScale = d3
+          .scaleLinear()
+          .domain([
+            0,
+            d3.max(arr, function (d) {
+              return d.deservedSalary;
+            }) + 5000,
+          ])
+          .range([h - padding, padding]);
+
+        var xScale = d3
+          .scaleLinear()
+          .domain([0, 11])
+          .range([
+            padding -
+              1.5 * barPadding1 -
+              (w - 2 * padding - 11 * barPadding1) / arr.length / 2,
+            padding +
+              barPadding1 +
+              9 * ((w - 2 * padding) / arr.length) +
+              9 * barPadding1 +
+              (3 * ((w - 2 * padding - 11 * barPadding1) / arr.length)) / 2 +
+              2 * barPadding1,
+          ]);
+
+        var yAxis = d3
+          .axisLeft()
+          .scale(yScale)
+          .tickFormat(d3.format(".2s"))
+          .tickSize(
+            padding -
+              1.5 * barPadding1 -
+              (w - 2 * padding - 11 * barPadding1) / arr.length / 2 -
+              (padding +
+                barPadding1 +
+                9 * ((w - 2 * padding) / arr.length) +
+                9 * barPadding1 +
+                (3 * ((w - 2 * padding - 11 * barPadding1) / arr.length)) / 2 +
+                2 * barPadding1)
+          )
+          .ticks(7);
+
+        var r = [
+          "",
+          "0-1 y",
+          "1-2 y",
+          "2-4 y",
+          "4-6 y",
+          "6-9 y",
+          "9-12 y",
+          "12-15 y",
+          "",
+        ];
+
+        var xAxis = d3
+          .axisBottom()
+          .scale(xScale)
+          .tickFormat((d, i) => r[i])
+          .ticks(12);
+
+        svg
+          .append("g")
+          .attr("class", "axis")
+          .attr(
+            "transform",
+            "translate(" +
+              (padding -
+                1.5 * barPadding1 -
+                (w - 2 * padding - 11 * barPadding1) / arr.length / 2) +
+              ",0)"
+          )
+          .call(yAxis);
+
+        svg
+          .selectAll("rect1")
+          .data(arr)
+          .enter()
+          .append("rect")
+          .attr("x", function (d, i) {
+            return (
+              padding +
+              barPadding1 +
+              i * ((w - 2 * padding) / arr.length) +
+              i * barPadding1
+            );
+          })
+          .attr("y", function (d) {
+            return yScale(d["deservedSalary"]);
+          })
+          .attr("width", (w - 2 * padding - 11 * barPadding1) / arr.length)
+          .attr("height", function (d) {
+            return h - padding - yScale(d["deservedSalary"]);
+          })
+          .attr("fill", "url(#grad2)");
+
+        svg
+          .selectAll("rect2")
+          .data(arr)
+          .enter()
+          .append("rect")
+          .attr("x", function (d, i) {
+            return (
+              padding +
+              barPadding1 +
+              i * ((w - 2 * padding) / arr.length) +
+              i * barPadding1 +
+              barPadding2
+            );
+          })
+          .attr("y", function (d) {
+            return yScale(d["averageMonthlyRevenue"]);
+          })
+          .attr(
+            "width",
+            (w - 2 * padding - 11 * barPadding1) / arr.length - 2 * barPadding2
+          )
+          .attr("height", function (d) {
+            return h - padding - yScale(d["averageMonthlyRevenue"]);
+          })
+          .attr("fill", "url(#grad1)");
+
+        svg
+          .append("g")
+          .attr("class", "axis")
+          .attr("transform", "translate(0, " + (h - padding) + ")")
+          .call(xAxis);
+
+        d3.selectAll(".axis path").remove();
+
+        svg
+          .append("rect")
+          .attr("x", w / 2 - padding - barPadding1)
+          .attr("y", h - padding / 2)
+          .attr("width", barPadding1)
+          .attr("height", barPadding1)
+          .attr("fill", "url(#grad1)");
+
+        svg
+          .append("rect")
+          .attr("x", w / 2 + padding)
+          .attr("y", h - padding / 2)
+          .attr("width", barPadding1)
+          .attr("height", barPadding1)
+          .attr("fill", "url(#grad2)");
+
+        svg
+          .append("rect")
+          .attr("x", padding / 2)
+          .attr("y", padding / 2 + 20)
+          .attr("width", 110)
+          .attr("height", 6)
+          .attr("fill", "url(#grad3)");
+
+        svg
+          .append("text")
+          .text("Average Monthly Revenue")
+          .attr("x", w / 2 - padding + barPadding1)
+          .attr("y", h - padding / 2 + barPadding1)
+          .attr("fill", "#EBEBEE");
+
+        svg
+          .append("text")
+          .text("Deserved Salary")
+          .attr("x", w / 2 + padding + 2 * barPadding1)
+          .attr("y", h - padding / 2 + barPadding1)
+          .attr("fill", "#EBEBEE");
+
+        svg
+          .append("text")
+          .text("Salary expectations vs experience")
+          .attr("x", padding / 2)
+          .attr("y", padding / 2)
+          .attr("font-size", "40px")
+          .attr("fill", "#EBEBEE");
+
+        svg
+          .append("text")
+          .text("──      Salary      ⟶")
+          .attr("x", 0)
+          .attr("y", 0)
+          .attr("font-size", "18px")
+          .attr("opacity", 0.8)
+          .attr("fill", "#EBEBEE")
+          .attr("transform", "translate(50,350) rotate(-90)");
+        //gradient for small bars
+        var colors = ["#FCE684", "#EE845B"];
+        var grad = svg
+          .append("defs")
+          .append("linearGradient")
+          .attr("id", "grad1")
+          .attr("x1", "0%")
+          .attr("x2", "0%")
+          .attr("y1", "0%")
+          .attr("y2", "100%");
+
+        grad
+          .selectAll("stop")
+          .data(colors)
+          .enter()
+          .append("stop")
+          .style("stop-color", function (d) {
+            return d;
+          })
+          .attr("offset", function (d, i) {
+            return 100 * (i / (colors.length - 1)) + "%";
+          });
+        //gradient for big bars
+        var colors2 = ["#5FD4F2", "#6B55FC"];
+        var grad2 = svg
+          .append("defs")
+          .append("linearGradient")
+          .attr("id", "grad2")
+          .attr("x1", "0%")
+          .attr("x2", "0%")
+          .attr("y1", "0%")
+          .attr("y2", "100%");
+
+        grad2
+          .selectAll("stop")
+          .data(colors2)
+          .enter()
+          .append("stop")
+          .style("stop-color", function (d) {
+            return d;
+          })
+          .attr("offset", function (d, i) {
+            return 100 * (i / (colors2.length - 1)) + "%";
+          });
+
+        //gradient for the third line
+        var colors3 = ["#E94040", "#DA458E"];
+        var grad3 = svg
+          .append("defs")
+          .append("linearGradient")
+          .attr("id", "grad3")
+          .attr("x1", "100%")
+          .attr("x2", "0%")
+          .attr("y1", "0%")
+          .attr("y2", "0%");
+
+        grad3
+          .selectAll("stop")
+          .data(colors3)
+          .enter()
+          .append("stop")
+          .style("stop-color", function (d) {
+            return d;
+          })
+          .attr("offset", function (d, i) {
+            return 100 * (i / (colors3.length - 1)) + "%";
+          });
+      });
+
+      //functions
+
+      function reg(str) {
+        let regex = /^[0-9]{1,2}/;
+        return parseInt(str.match(regex));
+      }
+    </script>
+  </body>
+</html>
